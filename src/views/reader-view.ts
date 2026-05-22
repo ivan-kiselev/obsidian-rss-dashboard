@@ -993,28 +993,6 @@ export class ReaderView extends ItemView {
       mainHtml !== "" &&
       (!descriptionHtml || !this.isEquivalentHtml(mainHtml, descriptionHtml));
 
-    if (!isNitter && descriptionHtml && hasDistinctMainContent) {
-      const descriptionCallout = this.readingContainer.createEl("details", {
-        cls: "rss-reader-description-callout",
-      });
-      descriptionCallout.open = true;
-      descriptionCallout.createEl("summary", { text: "Feed description" });
-      const descriptionBody = descriptionCallout.createDiv({
-        cls: "rss-reader-description rss-reader-description-body",
-      });
-      this.populateArticleHtml(
-        descriptionBody,
-        descriptionHtml,
-        item.link,
-        fallbackHeroUrl,
-        displayTitle,
-        heroSlot,
-        false,
-        false,
-        undefined,
-      );
-    }
-
     const contentToRender = isNitter
       ? this.pickBestNitterTweetHtml(item, fullContent)
       : hasDistinctMainContent
@@ -1060,6 +1038,9 @@ export class ReaderView extends ItemView {
       const parser = new DOMParser();
       const doc = parser.parseFromString(html, "text/html");
 
+      // Promote lazy-loaded image attributes to `src` before URL resolution.
+      this.normalizeLazyImages(doc);
+
       // Resolve relative URLs (for correct link/image navigation in Obsidian)
       if (baseUrl) {
         const base = new URL(baseUrl);
@@ -1102,39 +1083,12 @@ export class ReaderView extends ItemView {
         doc.body.querySelectorAll("svg").forEach((el) => el.remove());
       }
 
-      // Attempt to extract and place hero image
-      if (heroSlot) {
-        const firstImg = doc.body.querySelector("img");
-
-        if (heroSlot.childElementCount === 0) {
-          let heroUrl = fallbackHeroUrl;
-          const firstImgSrc = firstImg?.getAttribute("src")?.trim() || "";
-          if (!heroUrl && firstImgSrc) {
-            heroUrl = firstImgSrc;
-          }
-
-          if (heroUrl) {
-            heroSlot.createEl("img", {
-              cls: "rss-reader-fallback-hero",
-              attr: { src: heroUrl, alt: title || "Hero image" },
-            });
-
-            // Remove the first image from the body if it's the hero image to avoid duplication
-            if (firstImg && firstImgSrc && firstImgSrc === heroUrl) {
-              this.removeLeadImageElement(firstImg);
-            }
-          }
-        } else {
-          // Hero slot already filled by a previous section (e.g. description)
-          // If the current section starts with the same image as the hero image, remove it to avoid duplication
-          const existingHeroSrc =
-            heroSlot.querySelector("img")?.getAttribute("src")?.trim() || "";
-          const firstImgSrc = firstImg?.getAttribute("src")?.trim() || "";
-          if (existingHeroSrc && firstImg && firstImgSrc === existingHeroSrc) {
-            this.removeLeadImageElement(firstImg);
-          }
-        }
-      }
+      // Hero image hoisting intentionally disabled: images stay where the
+      // author placed them in the source HTML. `heroSlot` remains in the DOM
+      // but empty, and `.rss-reader-hero-slot:empty { display: none }` hides it.
+      void heroSlot;
+      void fallbackHeroUrl;
+      void title;
 
       // Obsidian shows tooltips for many elements with `aria-label` / `data-tooltip*`.
       // Embedded article HTML frequently includes accessibility labels like "Breadcrumbs" and "Article body",
@@ -1165,25 +1119,184 @@ export class ReaderView extends ItemView {
       // Fall back to raw HTML if parsing fails
     }
 
-    if (
-      this.settings.highlights?.enabled &&
-      this.settings.highlights.highlightInContent
-    ) {
-      const highlightService = new HighlightService(this.settings.highlights);
-      container.innerHTML = html; // eslint-disable-line @microsoft/sdl/no-inner-html
-      highlightService.highlightElement(container);
-    } else {
-      container.innerHTML = html; // eslint-disable-line @microsoft/sdl/no-inner-html
-    }
+    this.renderHtmlInIframe(container, html, baseUrl || "");
+    void isNitter;
+  }
 
-    // Add classes to images for styling
-    container.querySelectorAll("img").forEach((img) => {
-      img.addClass("rss-reader-responsive-img");
+  private renderHtmlInIframe(
+    container: HTMLElement,
+    bodyHtml: string,
+    baseUrl: string,
+  ): void {
+    container.empty();
+    container.addClass("rss-reader-iframe-host");
+
+    const iframe = container.createEl("iframe", {
+      cls: "rss-reader-article-iframe",
+      attr: {
+        title: "Article content",
+        sandbox: "allow-popups allow-popups-to-escape-sandbox allow-scripts",
+        referrerpolicy: "no-referrer",
+        loading: "eager",
+      },
     });
 
-    if (isNitter) {
-      this.hydrateNitterStatsIcons(container);
+    const isDark = document.body.classList.contains("theme-dark");
+    const escapeAttr = (v: string) =>
+      v.replace(/[&<>"']/g, (c) =>
+        c === "&" ? "&amp;"
+          : c === "<" ? "&lt;"
+          : c === ">" ? "&gt;"
+          : c === '"' ? "&quot;"
+          : "&#39;",
+      );
+    const baseTag = baseUrl ? `<base href="${escapeAttr(baseUrl)}">` : "";
+
+    // Pull current values of Obsidian's CSS custom properties so the iframe
+    // follows the active theme. Obsidian sets these on <body>, not <html>,
+    // so we read from body. We also capture the resolved font and font-size
+    // directly in case the theme sets them via plain CSS rules rather than
+    // exposing --font-* tokens.
+    const cssVarNames = [
+      "--text-normal",
+      "--text-muted",
+      "--text-faint",
+      "--text-accent",
+      "--text-on-accent",
+      "--background-primary",
+      "--background-secondary",
+      "--background-modifier-border",
+      "--background-modifier-hover",
+      "--interactive-accent",
+      "--interactive-accent-hover",
+      "--font-text",
+      "--font-interface",
+      "--font-monospace",
+      "--font-text-size",
+      "--line-height-normal",
+    ];
+    const bodyStyle = getComputedStyle(document.body);
+    const themeVarsCss = cssVarNames
+      .map((name) => {
+        const value = bodyStyle.getPropertyValue(name).trim();
+        return value ? `${name}: ${value};` : "";
+      })
+      .filter(Boolean)
+      .join("\n    ");
+    const resolvedFontFamily = bodyStyle.fontFamily || "";
+    const resolvedFontSize = bodyStyle.fontSize || "";
+
+    const srcdoc = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+${baseTag}
+<style>
+  :root {
+    color-scheme: ${isDark ? "dark" : "light"};
+    ${themeVarsCss}
+  }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--background-primary, ${isDark ? "#202020" : "#ffffff"});
+    color: var(--text-normal, ${isDark ? "#dcddde" : "#1f1f1f"});
+    font-family: var(--font-text, ${resolvedFontFamily || `-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif`});
+    font-size: var(--font-text-size, ${resolvedFontSize || "16px"});
+    line-height: var(--line-height-normal, 1.6);
+    word-wrap: break-word;
+  }
+  body {
+    padding: 8px 16px 24px;
+    max-width: 820px;
+    margin: 0 auto;
+  }
+  img, video, picture, iframe, svg {
+    max-width: 100%;
+    height: auto;
+  }
+  a { color: var(--text-accent, var(--interactive-accent, ${isDark ? "#7aa7e0" : "#1a5fb4"})); }
+  blockquote {
+    margin: 0.8em 0;
+    padding: 0.4em 1em;
+    border-left: 3px solid var(--background-modifier-border, ${isDark ? "#3a3a3a" : "#ddd"});
+    color: var(--text-muted, ${isDark ? "#a0a0a0" : "#666"});
+  }
+  pre {
+    background: var(--background-secondary, ${isDark ? "#1c1c1c" : "#f6f6f6"});
+    padding: 0.6em 0.8em;
+    overflow-x: auto;
+    border-radius: 4px;
+  }
+  code {
+    background: var(--background-secondary, ${isDark ? "#262626" : "#f1f1f1"});
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-family: var(--font-monospace, ui-monospace, SFMono-Regular, Menlo, monospace);
+  }
+  pre code { padding: 0; background: transparent; }
+  table { border-collapse: collapse; max-width: 100%; display: block; overflow-x: auto; }
+  th, td {
+    border: 1px solid var(--background-modifier-border, ${isDark ? "#3a3a3a" : "#ddd"});
+    padding: 4px 8px;
+    text-align: left;
+    vertical-align: top;
+  }
+  figure { margin: 0.8em 0; }
+  figcaption {
+    margin-top: 0.4em;
+    font-size: 0.9em;
+    color: var(--text-muted, ${isDark ? "#a0a0a0" : "#666"});
+    text-align: center;
+  }
+  hr { border: 0; border-top: 1px solid var(--background-modifier-border, ${isDark ? "#3a3a3a" : "#ddd"}); margin: 1.5em 0; }
+</style>
+</head>
+<body>
+${bodyHtml}
+<script>
+(function () {
+  function postHeight() {
+    var h = Math.max(
+      document.documentElement.scrollHeight,
+      document.body.scrollHeight
+    );
+    window.parent.postMessage({ type: "rss-reader-iframe-height", height: h }, "*");
+  }
+  document.addEventListener("click", function (e) {
+    var a = e.target && e.target.closest ? e.target.closest("a") : null;
+    if (a && a.href) {
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
     }
+  }, true);
+  if (document.readyState === "complete") {
+    postHeight();
+  } else {
+    window.addEventListener("load", postHeight, { once: true });
+  }
+  if (typeof ResizeObserver !== "undefined") {
+    new ResizeObserver(postHeight).observe(document.body);
+  }
+  document.querySelectorAll("img").forEach(function (img) {
+    if (!img.complete) img.addEventListener("load", postHeight, { once: true });
+    img.addEventListener("error", postHeight, { once: true });
+  });
+})();
+</script>
+</body>
+</html>`;
+
+    iframe.srcdoc = srcdoc;
+
+    this.registerDomEvent(window, "message", (e: MessageEvent) => {
+      if (e.source !== iframe.contentWindow) return;
+      const data = e.data as { type?: string; height?: number } | undefined;
+      if (data?.type === "rss-reader-iframe-height" && typeof data.height === "number") {
+        iframe.style.height = `${Math.max(data.height, 80)}px`;
+      }
+    });
   }
 
   private isNitterHost(host: string): boolean {
@@ -1739,6 +1852,90 @@ export class ReaderView extends ItemView {
       !!block.querySelector("img, figure, picture") &&
       this.getNormalizedBlockText(block).length < 40
     );
+  }
+
+  private normalizeLazyImages(doc: Document): void {
+    if (!doc.body) return;
+
+    const LAZY_SRC_ATTRS = [
+      "data-src",
+      "data-original",
+      "data-lazy-src",
+      "data-actual-src",
+      "data-defer-src",
+      "data-delayed-url",
+      "data-orig-file",
+      "data-large-file",
+      "data-full-src",
+      "data-hi-res-src",
+      "data-image",
+    ];
+    const LAZY_SRCSET_ATTRS = ["data-srcset", "data-lazy-srcset"];
+
+    const isPlaceholder = (value: string): boolean => {
+      if (!value) return true;
+      const v = value.trim();
+      if (!v) return true;
+      if (v === "about:blank") return true;
+      // 1x1 pixel placeholders and tiny base64 data URIs
+      if (v.startsWith("data:")) {
+        return v.length < 200;
+      }
+      // common spacer filenames
+      if (/(?:^|\/)(?:spacer|blank|placeholder|loading|transparent|pixel)[^/]*\.(?:gif|png|svg|webp)(?:[?#]|$)/i.test(v)) {
+        return true;
+      }
+      return false;
+    };
+
+    const firstNonEmpty = (img: HTMLImageElement, names: string[]): string => {
+      for (const name of names) {
+        const v = img.getAttribute(name);
+        if (v && v.trim()) return v.trim();
+      }
+      return "";
+    };
+
+    doc.body.querySelectorAll<HTMLImageElement>("img").forEach((img) => {
+      const currentSrc = img.getAttribute("src") || "";
+      if (isPlaceholder(currentSrc)) {
+        const lazy = firstNonEmpty(img, LAZY_SRC_ATTRS);
+        if (lazy) {
+          img.setAttribute("src", lazy);
+        } else {
+          // Fall back to srcset's first candidate if no data-* attribute.
+          const srcset = img.getAttribute("srcset") || firstNonEmpty(img, LAZY_SRCSET_ATTRS);
+          if (srcset) {
+            const first = srcset.split(",")[0]?.trim().split(/\s+/)[0] || "";
+            if (first) img.setAttribute("src", first);
+          }
+        }
+      }
+
+      // Promote lazy srcset to srcset if the real srcset is missing.
+      if (!img.getAttribute("srcset")) {
+        const lazySrcset = firstNonEmpty(img, LAZY_SRCSET_ATTRS);
+        if (lazySrcset) img.setAttribute("srcset", lazySrcset);
+      }
+
+      // Defuse browser lazy loading so images load eagerly inside the reader.
+      if (img.getAttribute("loading") === "lazy") {
+        img.removeAttribute("loading");
+      }
+    });
+
+    // <noscript> wrappers often contain the real <img> for lazy-loaded pages.
+    // The parser leaves noscript children as text; promote any noscript whose
+    // text content is itself an <img> tag.
+    doc.body.querySelectorAll("noscript").forEach((ns) => {
+      const text = ns.textContent?.trim() || "";
+      if (!text.toLowerCase().startsWith("<img")) return;
+      const tmp = doc.createElement("div");
+      // eslint-disable-next-line @microsoft/sdl/no-inner-html
+      tmp.innerHTML = text;
+      const replacement = tmp.firstElementChild;
+      if (replacement) ns.replaceWith(replacement);
+    });
   }
 
   private removeLeadImageElement(imageEl: Element): void {

@@ -143,8 +143,13 @@
   line-height: var(--rss-reader-line-height);
   font-size: var(--rss-reader-body-font-size);
   font-family: var(--rss-reader-font-family);
-  text-align: justify;
+  text-align: left;
   color: var(--text-normal);
+}
+
+.rss-reader-view[data-rss-reader-align="justify"] .rss-reader-article-content,
+.rss-reader-view[data-rss-reader-align="justify"] .rss-reader-description-body {
+  text-align: justify;
 }
 
 .rss-reader-view[data-rss-reader-align="left"] .rss-reader-article-content,
@@ -261,13 +266,105 @@
 .rss-reader-article-content img,
 .rss-reader-description img {
   max-width: 100%;
-  height: auto;
   border-radius: 5px;
-  margin: 10px 0;
+}
+
+/* Only force aspect-ratio when the source HTML didn't pin a height. */
+.rss-reader-article-content img:not([height]),
+.rss-reader-description img:not([height]) {
+  height: auto;
+}
+
+/* Block-level images (figures, plain <img> outside text flow) get a small breath
+   above/below — but only when the image is alone in its parent so we don't
+   override an author that placed it inline within a paragraph. */
+.rss-reader-article-content p > img:only-child,
+.rss-reader-article-content figure,
+.rss-reader-description figure {
+  display: block;
+  margin: 0.8em auto;
+}
+
+.rss-reader-article-content figure img,
+.rss-reader-description figure img {
+  display: block;
+  margin: 0 auto;
+}
+
+.rss-reader-article-content figcaption,
+.rss-reader-description figcaption {
+  margin-top: 0.4em;
+  font-size: 0.9em;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.rss-reader-article-content table,
+.rss-reader-description table {
+  border-collapse: collapse;
+  max-width: 100%;
+  margin: 0.8em 0;
+  display: block;
+  overflow-x: auto;
+}
+
+.rss-reader-article-content th,
+.rss-reader-article-content td,
+.rss-reader-description th,
+.rss-reader-description td {
+  border: 1px solid var(--background-modifier-border);
+  padding: 4px 8px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.rss-reader-article-content blockquote,
+.rss-reader-description blockquote {
+  margin: 0.8em 0;
+  padding: 0.4em 1em;
+  border-left: 3px solid var(--background-modifier-border);
+  color: var(--text-muted);
+}
+
+.rss-reader-article-content pre,
+.rss-reader-description pre {
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 0.6em 0.8em;
+  background: var(--background-secondary);
+  border-radius: 4px;
+}
+
+.rss-reader-article-content code,
+.rss-reader-description code {
+  background: var(--background-secondary);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-family: var(--font-monospace), monospace;
+}
+
+.rss-reader-article-content pre code,
+.rss-reader-description pre code {
+  padding: 0;
+  background: transparent;
 }
 
 .rss-reader-hero-slot:empty {
   display: none;
+}
+
+.rss-reader-iframe-host {
+  padding: 0;
+}
+
+.rss-reader-article-iframe {
+  width: 100%;
+  border: 0;
+  display: block;
+  background: transparent;
+  /* Initial height; replaced via postMessage once the iframe content loads. */
+  height: 400px;
+  transition: height 0.15s ease-out;
 }
 
 .rss-reader-fallback-hero {
@@ -289,8 +386,11 @@
 }
 .rss-reader-responsive-img {
   max-width: 100%;
-  height: auto;
   border-radius: 5px;
+}
+
+.rss-reader-responsive-img:not([height]) {
+  height: auto;
 }
 .rss-reader-error {
   padding: 15px;
@@ -570,13 +670,19 @@ mark.rss-highlight {
 
   .rss-reader-cover-image img {
     max-width: 100%;
-    height: auto;
     border-radius: 8px;
   }
 
+  .rss-reader-cover-image img:not([height]) {
+    height: auto;
+  }
+
   .rss-reader-responsive-img {
-    max-width: 100% !important;
-    height: auto !important;
+    max-width: 100%;
+  }
+
+  .rss-reader-responsive-img:not([height]) {
+    height: auto;
   }
 }
 
