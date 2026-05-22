@@ -194,7 +194,7 @@
 }
 
 .rss-dashboard-sidebar-tag-row .rss-dashboard-tag-checkbox {
-  accent-color: #9b59b6;
+  accent-color: var(--interactive-accent);
   margin-right: 8px;
   cursor: pointer;
   width: 18px;
@@ -287,15 +287,15 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: white;
-  background-color: #ef4444;
+  color: var(--text-on-accent);
+  background-color: var(--background-modifier-error);
   border-radius: 4px;
   transition: all 0.2s ease;
   flex-shrink: 0;
 }
 
 .rss-dashboard-sidebar-add-tag-cancel-btn:hover {
-  background-color: #dc2626;
+  background-color: var(--background-modifier-error-hover);
 }
 
 .rss-dashboard-sidebar-add-tag-btn svg {
@@ -305,7 +305,7 @@
 
 .rss-dashboard-sidebar-tags-section {
   border-bottom: 1px solid;
-  border-color: #8e44ad;
+  border-color: var(--background-modifier-border);
 }
 
 .rss-dashboard-sidebar-add-tag-toggle {
@@ -374,15 +374,17 @@
 
 .rss-dashboard-feed-folder-header.active {
   font-weight: 600;
+  background-color: var(--nav-item-background-active, var(--background-modifier-hover));
+  color: var(--nav-item-color-active, var(--text-normal));
 }
 
 .rss-dashboard-feed-folder-header.active .rss-dashboard-feed-folder-name {
   font-weight: 600;
-  color: var(--text-accent);
+  color: var(--nav-item-color-active, var(--text-normal));
 }
 
 .rss-dashboard-feed-folder-header.active .rss-dashboard-feed-folder-toggle {
-  color: var(--text-accent);
+  color: var(--nav-item-color-active, var(--text-normal));
 }
 .rss-dashboard-feed-folder-name {
   min-width: 0;
@@ -437,9 +439,9 @@
   background-color: var(--background-modifier-hover);
 }
 .rss-dashboard-feed.active {
-  background-color: var(--background-modifier-active);
+  background-color: var(--nav-item-background-active, var(--background-modifier-active));
   font-weight: bold;
-  color: var(--text-accent);
+  color: var(--nav-item-color-active, var(--text-normal));
 }
 .rss-dashboard-feed-name-container {
   display: flex;
@@ -459,7 +461,7 @@
 .rss-dashboard-all-feeds-unread,
 .rss-dashboard-folder-unread-count {
   flex-shrink: 0;
-  color: white;
+  color: var(--text-muted);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -474,16 +476,16 @@
 }
 .rss-dashboard-feed-unread-count {
   margin-left: auto;
-  background-color: var(--rss-unread-badge-feed-color, #8e44ad);
+  background-color: var(--rss-unread-badge-feed-color, var(--background-modifier-border));
 }
 
 .rss-dashboard-all-feeds-unread {
-  background-color: var(--rss-unread-badge-all-feeds-color, #8e44ad);
+  background-color: var(--rss-unread-badge-all-feeds-color, var(--background-modifier-border));
 }
 
 .rss-dashboard-folder-unread-count {
   margin-left: auto;
-  background-color: var(--rss-unread-badge-folder-color, #d85b9f);
+  background-color: var(--rss-unread-badge-folder-color, var(--background-modifier-border));
 }
 .rss-dashboard-sidebar-toolbar {
   order: 3;
@@ -534,12 +536,12 @@
 }
 
 .rss-dashboard-toolbar-button.is-active {
-  background-color: var(--interactive-accent);
-  color: var(--text-on-accent);
+  background-color: var(--background-modifier-active);
+  color: var(--text-normal);
 }
 
 .rss-dashboard-toolbar-button:focus-visible {
-  outline: 2px solid var(--interactive-accent-hover);
+  outline: 2px solid var(--background-modifier-border-hover, var(--background-modifier-border));
   outline-offset: 1px;
 }
 .rss-dashboard-feed-folder-header.drag-over {
@@ -697,7 +699,7 @@
   transform: translate(-50%, -50%);
   width: 48px;
   height: 48px;
-  background-color: rgb(142 68 173 / 0.8);
+  background-color: var(--interactive-accent);
   border-radius: 50%;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' class='lucide lucide-headphones'%3E%3Cpath d='M3 14h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a9 9 0 0 1 18 0v7a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3'%3E%3C/path%3E%3C/svg%3E");
   background-repeat: no-repeat;
@@ -711,7 +713,7 @@
 }
 .rss-dashboard-feed.podcast-feed .rss-dashboard-feed-icon,
 .rss-dashboard-folder[data-folder="Podcasts"] .rss-dashboard-folder-icon {
-  color: #8e44ad;
+  color: var(--text-accent);
 }
 .rss-dashboard-sidebar-container,
 .rss-dashboard-sidebar {
@@ -812,8 +814,8 @@
 
 /* Light mode: reduce opacity */
 body.theme-light .rss-dashboard-all-feeds-button {
-  border-bottom-color: #33333380;
-  border-top-color: #33333380;
+  border-bottom-color: var(--background-modifier-border);
+  border-top-color: var(--background-modifier-border);
 }
 
 /* Dark mode */
@@ -837,7 +839,7 @@ body.theme-dark .rss-dashboard-all-feeds-button {
   align-items: center;
   justify-content: center;
   margin-right: 8px;
-  color: var(--rss-unread-badge-all-feeds-color);
+  color: var(--text-muted);
 }
 
 /* Spinner color override */
@@ -929,25 +931,25 @@ body.theme-dark .rss-dashboard-all-feeds-button {
 }
 
 .rss-folder-name-modal-cancel {
-  background-color: #ef4444;
-  color: #fff;
+  background-color: var(--background-modifier-error);
+  color: var(--text-on-accent);
 }
 
 .rss-folder-name-modal-cancel:hover {
-  background-color: #dc2626;
+  background-color: var(--background-modifier-error-hover);
   transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+  box-shadow: var(--shadow-s);
 }
 
 .rss-folder-name-modal-ok {
-  background-color: #8b5cf6;
-  color: #fff;
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
 }
 
 .rss-folder-name-modal-ok:hover {
-  background-color: #7c3aed;
+  background-color: var(--interactive-accent-hover);
   transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
+  box-shadow: var(--shadow-s);
 }
 
 .rss-sidebar-confirm-message {

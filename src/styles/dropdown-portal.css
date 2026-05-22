@@ -270,10 +270,10 @@
 .rss-dashboard-filter-apply-btn {
   margin: 8px 10px 10px;
   min-height: 34px;
-  border: 1px solid #9b59b6;
+  border: 1px solid var(--interactive-accent);
   border-radius: 8px;
-  background: #9b59b6;
-  color: #fff;
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -283,8 +283,8 @@
 }
 
 .rss-dashboard-filter-apply-btn:hover {
-	border-color: #a66ac0;
-	background: #a66ac0;
+	border-color: var(--interactive-accent-hover);
+	background: var(--interactive-accent-hover);
 }
 
 .rss-dashboard-filter-checkbox {

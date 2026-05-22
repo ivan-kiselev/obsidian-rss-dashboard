@@ -111,8 +111,8 @@
   justify-content: center;
   padding: 6px;
   cursor: pointer;
-  color: #ea6962;
-  background-color: rgba(234, 105, 98, 0.12);
+  color: var(--text-error);
+  background-color: var(--background-modifier-error);
   border-radius: 4px;
   transition: all 0.15s ease;
 }
@@ -122,8 +122,8 @@
 }
 
 .rss-discover-search-input-wrapper .rss-discover-search-clear:hover {
-  color: #d94839;
-  background-color: rgba(217, 72, 57, 0.2);
+  color: var(--text-error);
+  background-color: var(--background-modifier-error-hover);
   transform: scale(1.08);
 }
 
@@ -650,16 +650,16 @@
 
 .rss-discover-card-remove-btn {
   cursor: pointer;
-  background: #e74c3c !important;
-  color: white !important;
-  border: 1px solid #c0392b !important;
+  background: var(--background-modifier-error) !important;
+  color: var(--text-on-accent) !important;
+  border: 1px solid var(--background-modifier-error-hover) !important;
   transition: all 0.2s ease;
 }
 
 .rss-discover-card-remove-btn:hover {
-  background: #e74c3c !important;
-  color: white !important;
-  border-color: white !important;
+  background: var(--background-modifier-error) !important;
+  color: var(--text-on-accent) !important;
+  border-color: var(--text-on-accent) !important;
 }
 
 .rss-discover-card-actions {
@@ -765,8 +765,8 @@
   line-height: 1.2;
   cursor: pointer;
   transition: all 0.2s ease;
-  background: #c0392b;
-  color: #fff;
+  background: var(--background-modifier-error);
+  color: var(--text-on-accent);
   border: none;
   margin: 0;
   min-height: 34px;
@@ -776,17 +776,17 @@
 }
 
 .rss-clear-filter-button:hover {
-  background: #a93226;
-  color: #fff;
+  background: var(--background-modifier-error-hover);
+  color: var(--text-on-accent);
 }
 
 .rss-clear-filter-button-danger {
-  background: #c0392b;
-  color: #fff;
+  background: var(--background-modifier-error);
+  color: var(--text-on-accent);
 }
 
 .rss-clear-filter-button-danger:hover {
-  background: #a93226;
+  background: var(--background-modifier-error-hover);
 }
 
 .rss-discover-ok-button {
@@ -893,8 +893,8 @@
   height: 18px;
   padding: 2px;
   cursor: pointer;
-  color: #ea6962;
-  background-color: rgba(234, 105, 98, 0.12);
+  color: var(--text-error);
+  background-color: var(--background-modifier-error);
   border-radius: 3px;
   transition: all 0.15s ease;
   margin-left: 6px;
@@ -902,8 +902,8 @@
 }
 
 .rss-discover-selected-filter-remove:hover {
-  color: #d94839;
-  background-color: rgba(217, 72, 57, 0.2);
+  color: var(--text-error);
+  background-color: var(--background-modifier-error-hover);
   transform: scale(1.12);
 }
 
@@ -980,7 +980,7 @@
 }
 
 .rss-discover-card-actions .mod-cta:hover {
-  background-color: #3ca03c;
+  background-color: var(--color-green);
 }
 
 .rss-discover-sidebar-nav {
@@ -1521,9 +1521,9 @@
 
   .modal.rss-mobile-discover-filters-modal
     .rss-dashboard-header-close-button:hover {
-    border-color: #9b59b6;
-    background: #9b59b6;
-    color: #fff;
+    border-color: var(--interactive-accent);
+    background: var(--interactive-accent);
+    color: var(--text-on-accent);
   }
 }
 
@@ -1680,8 +1680,8 @@
 .rss-smallweb-badge {
   background: linear-gradient(
     135deg,
-    hsl(260, 60%, 65%),
-    hsl(280, 60%, 65%)
+    var(--interactive-accent),
+    var(--interactive-accent-hover)
   ) !important;
   /* color: white !important; */
   display: inline-flex;

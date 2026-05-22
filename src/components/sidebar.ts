@@ -481,15 +481,15 @@ export class Sidebar {
     );
     this.container.style.setProperty(
       "--rss-unread-badge-all-feeds-color",
-      this.settings.display.allFeedsUnreadBadgeColor || "#8e44ad",
+      this.settings.display.allFeedsUnreadBadgeColor || "",
     );
     this.container.style.setProperty(
       "--rss-unread-badge-folder-color",
-      this.settings.display.folderUnreadBadgeColor || "#d85b9f",
+      this.settings.display.folderUnreadBadgeColor || "",
     );
     this.container.style.setProperty(
       "--rss-unread-badge-feed-color",
-      this.settings.display.feedUnreadBadgeColor || "#8e44ad",
+      this.settings.display.feedUnreadBadgeColor || "",
     );
     this.refreshImportStatusLookups();
 

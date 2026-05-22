@@ -39,6 +39,21 @@ export function migrateDisplaySettings(display: Record<string, unknown>): void {
       }
     }
   }
+
+  const LEGACY_BADGE_COLORS = new Set(["#8e44ad", "#d85b9f"]);
+  const badgeFields = [
+    "allFeedsUnreadBadgeColor",
+    "folderUnreadBadgeColor",
+    "feedUnreadBadgeColor",
+    "allFeedsUnreadBadgeDefaultColor",
+    "folderUnreadBadgeDefaultColor",
+    "feedUnreadBadgeDefaultColor",
+  ];
+  for (const field of badgeFields) {
+    if (typeof display[field] === "string" && LEGACY_BADGE_COLORS.has(display[field] as string)) {
+      display[field] = "";
+    }
+  }
 }
 
 /**

@@ -471,14 +471,14 @@
 
   .rss-dashboard-filters-inline
     .rss-dashboard-filter-item.rss-dashboard-mobile-refresh-button {
-    background-color: #8e44ad;
-    color: #fff;
+    background-color: var(--interactive-accent);
+    color: var(--text-on-accent);
   }
 
   .rss-dashboard-filters-inline
     .rss-dashboard-filter-item.rss-dashboard-mobile-refresh-button:hover {
-    background-color: #9b59b6;
-    color: #fff;
+    background-color: var(--interactive-accent-hover);
+    color: var(--text-on-accent);
   }
 }
 
@@ -918,10 +918,10 @@
   justify-content: center;
   min-height: 30px;
   padding: 0 10px;
-  border: 1px solid #a32020;
+  border: 1px solid var(--background-modifier-error-hover);
   border-radius: 6px;
-  background: #c93030;
-  color: #fff;
+  background: var(--background-modifier-error);
+  color: var(--text-on-accent);
   font-weight: 700;
   cursor: pointer;
 }
@@ -932,12 +932,12 @@
 }
 
 .rss-keyword-filter-delete:hover {
-  background: #b62828;
+  background: var(--background-modifier-error-hover);
 }
 
 .rss-keyword-filter-delete:disabled {
-  background: #7a2a2a;
-  border-color: #6a2020;
+  background: var(--background-modifier-error);
+  border-color: var(--background-modifier-error-hover);
   opacity: 0.8;
   cursor: not-allowed;
 }

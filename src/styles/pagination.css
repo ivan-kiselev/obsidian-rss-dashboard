@@ -9,8 +9,9 @@
 }
 
 .rss-dashboard-pagination-btn {
-  background: var(--background-secondary);
-  color: var(--text-color);
+  background: var(--interactive-normal);
+  color: var(--text-normal);
+  border: 1px solid var(--background-modifier-border);
   border-radius: 6px;
   padding: 0.3em 0.9em;
   font-size: 1rem;
@@ -22,38 +23,42 @@
   margin: 0 2px;
 }
 
+.rss-dashboard-pagination-btn:hover {
+  background: var(--interactive-hover);
+}
+
 .rss-dashboard-pagination-btn.active,
 .rss-dashboard-pagination-btn:disabled {
-  background: var(--color-accent);
-  color: var(--text-on-accent);
-  border-color: var(--color-accent);
+  background: var(--background-modifier-active);
+  color: var(--text-normal);
+  border-color: var(--background-modifier-border-hover, var(--background-modifier-border));
   cursor: default;
 }
 
 .rss-dashboard-pagination-btn.prev,
 .rss-dashboard-pagination-btn.next {
   font-weight: bold;
-  background: var(--background-secondary);
-  color: var(--text-color);
+  background: var(--interactive-normal);
+  color: var(--text-normal);
   border-radius: 6px;
 }
 
 .rss-dashboard-pagination-btn.prev:disabled,
 .rss-dashboard-pagination-btn.next:disabled {
-  background: var(--background-secondary);
-  color: var(--text-color);
-  border-color: var(--color-accent);
+  background: var(--interactive-normal);
+  color: var(--text-muted);
+  border-color: var(--background-modifier-border);
 }
 
 .rss-dashboard-pagination-ellipsis {
-  color: var(--text-color);
+  color: var(--text-muted);
   font-size: 1.1em;
   margin: 0 4px;
 }
 
 .rss-dashboard-pagination-results {
   margin-left: 1.2rem;
-  color: var(--text-color);
+  color: var(--text-muted);
   font-size: 0.98em;
 }
 
@@ -61,8 +66,9 @@
   margin-left: 1.2rem;
   padding: 0.2em 0.8em;
   border-radius: 6px;
-  background: var(--background-secondary);
-  color: var(--text-color);
+  background: var(--interactive-normal);
+  color: var(--text-normal);
+  border: 1px solid var(--background-modifier-border);
   font-size: 1em;
   outline: none;
   cursor: pointer;
@@ -74,7 +80,7 @@
 }
 
 .rss-dashboard-page-size-dropdown:focus {
-  border-color: var(--color-accent);
+  border-color: var(--interactive-accent);
 }
 
 .rss-dashboard-pagination-wrapper {
@@ -84,4 +90,5 @@
   width: 100%;
   margin-top: 0;
   margin-bottom: 0;
+  padding-bottom: calc(var(--status-bar-height, 28px) + 12px);
 }

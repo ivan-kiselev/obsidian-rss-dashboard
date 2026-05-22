@@ -138,7 +138,7 @@
   padding: 2px 8px;
   border-radius: 4px;
   font-size: 0.95em;
-  color: #fff;
+  color: var(--text-on-accent);
   background: var(--tag-color, var(--interactive-accent));
   font-weight: 500;
 }
@@ -266,19 +266,19 @@
 }
 
 .rss-dashboard-read-toggle.read {
-  color: #2ecc71;
+  color: var(--color-green);
 }
 
 .rss-dashboard-star-toggle.starred {
-  color: #f1c40f;
+  color: var(--color-yellow);
 }
 
 .rss-dashboard-star-toggle.starred svg {
-  fill: #f1c40f;
+  fill: var(--color-yellow);
 }
 
 .rss-dashboard-star-toggle.unstarred {
-  color: #888 !important;
+  color: var(--text-muted) !important;
   opacity: 1 !important;
 }
 
@@ -433,7 +433,7 @@
   padding: 1px 6px;
   border-radius: 3px;
   font-size: 11px;
-  color: #fff;
+  color: var(--text-on-accent);
   cursor: pointer;
   flex-grow: 1;
   background-color: var(--tag-color, var(--interactive-accent));
@@ -487,7 +487,7 @@
   padding: 1px 6px;
   border-radius: 3px;
   font-size: 11px;
-  color: #fff;
+  color: var(--text-on-accent);
   background-color: var(--tag-color, var(--interactive-accent));
 }
 
@@ -528,7 +528,7 @@
 }
 
 .rss-dashboard-article-feed-icon.podcast {
-  color: #8e44ad;
+  color: var(--text-accent);
 }
 
 .rss-dashboard-save-toggle {
@@ -613,15 +613,15 @@
 }
 
 .rss-dashboard-article-duration {
-  background-color: #8e44ad;
-  color: #fff;
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
   padding: 2px 6px;
   border-radius: 3px;
   font-size: 12px;
 }
 
 .rss-dashboard-read-toggle.read svg {
-  color: #43a047 !important;
+  color: var(--color-green) !important;
 }
 
 /* Ensure smooth transitions for article elements */

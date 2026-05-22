@@ -5,6 +5,7 @@ import { ArticleEmptyState } from "./article-empty-state";
 import { extractDomain, getFaviconUrl } from "../utils/favicon-utils";
 import {
   formatDateWithRelative,
+  formatShortTimestamp,
   ensureUtf8Meta,
   setCssProps,
 } from "../utils/platform-utils";
@@ -1815,10 +1816,11 @@ export class ArticleList {
         titleEl.textContent = article.title;
       }
       const dateInfo = formatDateWithRelative(article.pubDate);
+      const shortStamp = formatShortTimestamp(article.pubDate);
       if (!useBottomRow) {
         const timeEl = mainGrid.createDiv("rss-dashboard-grid-time");
         const dateEl = timeEl.createSpan("rss-dashboard-article-date");
-        dateEl.textContent = dateInfo.text;
+        dateEl.textContent = shortStamp;
         dateEl.setAttribute("title", dateInfo.title);
       }
       const actionsEl = mainGrid.createDiv("rss-dashboard-grid-actions");
@@ -1893,7 +1895,7 @@ export class ArticleList {
         const footerDateEl = listFooter.createDiv({
           cls: "rss-dashboard-article-date rss-dashboard-list-footer-date",
         });
-        footerDateEl.textContent = dateInfo.text;
+        footerDateEl.textContent = shortStamp;
         footerDateEl.setAttribute("title", dateInfo.title);
       }
       articleEl.addEventListener("click", () => {

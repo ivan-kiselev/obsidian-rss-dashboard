@@ -76,6 +76,34 @@ export function formatRelativeTime(date: Date | string): string {
   }
 }
 
+export function formatShortTimestamp(date: Date | string): string {
+  const targetDate = typeof date === "string" ? new Date(date) : date;
+  if (isNaN(targetDate.getTime())) return "";
+
+  const now = new Date();
+  const sameDay = now.toDateString() === targetDate.toDateString();
+  if (sameDay) {
+    return targetDate.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+  }
+
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (yesterday.toDateString() === targetDate.toDateString()) {
+    return "Yesterday";
+  }
+
+  const sameYear = now.getFullYear() === targetDate.getFullYear();
+  return targetDate.toLocaleDateString([], {
+    month: "short",
+    day: "numeric",
+    ...(sameYear ? {} : { year: "numeric" }),
+  });
+}
+
 export function formatDateWithRelative(date: Date | string): {
   text: string;
   title: string;

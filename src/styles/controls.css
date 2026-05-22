@@ -435,7 +435,7 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background-color: var(--highlight-color, #ffd700);
+  background-color: var(--highlight-color, var(--color-yellow));
   flex-shrink: 0;
 }
 
@@ -560,9 +560,9 @@
   min-height: var(--input-height);
   padding: 0;
   border-radius: 8px;
-  border: 1px solid #8e44ad;
-  background: #8e44ad;
-  color: #fff;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--interactive-normal);
+  color: var(--text-normal);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -570,9 +570,8 @@
 }
 
 .rss-dashboard-article-controls .rss-dashboard-refresh-button:hover {
-  border-color: #9b59b6;
-  background: #9b59b6;
-  color: #fff;
+  background: var(--interactive-hover);
+  color: var(--text-normal);
 }
 
 .rss-dashboard-article-controls
@@ -855,8 +854,8 @@
 }
 
 .rss-dashboard-dropdown-controls {
-  --rss-dashboard-dropdown-accent: #9b59b6;
-  --rss-dashboard-dropdown-accent-hover: #a66ac0;
+  --rss-dashboard-dropdown-accent: var(--interactive-accent);
+  --rss-dashboard-dropdown-accent-hover: var(--interactive-accent-hover);
   padding: 16px;
 }
 
@@ -926,7 +925,7 @@
 
 .rss-dashboard-dropdown-controls
   .rss-dashboard-mark-all-button.rss-dashboard-mark-read {
-  border-color: rgba(46, 204, 113, 0.3);
+  border-color: var(--background-modifier-border);
 }
 
 .rss-dashboard-dropdown-controls
@@ -937,14 +936,14 @@
 
 .rss-dashboard-dropdown-controls
   .rss-dashboard-mark-all-button.rss-dashboard-mark-read:hover {
-  background-color: rgba(46, 204, 113, 0.1);
-  border-color: #2ecc71;
+  background-color: var(--background-modifier-hover);
+  border-color: var(--background-modifier-border-hover, var(--background-modifier-border));
 }
 
 .rss-dashboard-dropdown-controls
   .rss-dashboard-mark-all-button.rss-dashboard-mark-read
   svg {
-  color: #2ecc71;
+  color: var(--text-muted);
 }
 
 .rss-dashboard-dropdown-controls .rss-dashboard-multi-filter-btn,
@@ -974,7 +973,7 @@
 .rss-dashboard-dropdown-controls
   .rss-dashboard-multi-filter-btn.has-active-filters {
   border-color: var(--rss-dashboard-dropdown-accent);
-  color: #f3e8ff;
+  color: var(--text-on-accent);
 }
 
 .rss-dashboard-dropdown-controls .rss-dashboard-article-search-container {
@@ -1344,17 +1343,16 @@
   height: 42px;
   min-height: 42px;
   padding: 0;
-  border: 1px solid #8e44ad;
-  background: #8e44ad;
-  color: #fff;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--interactive-normal);
+  color: var(--text-normal);
 }
 
 .rss-dashboard-dropdown-controls
   .rss-dashboard-view-toggle
   .rss-dashboard-view-refresh-button:hover {
-  border-color: #9b59b6;
-  background: #9b59b6;
-  color: #fff;
+  background: var(--interactive-hover);
+  color: var(--text-normal);
 }
 
 .rss-dashboard-dropdown-controls
@@ -1428,7 +1426,7 @@
   padding: 0;
   border: 1px solid var(--rss-dashboard-dropdown-accent);
   background: var(--rss-dashboard-dropdown-accent);
-  color: #fff;
+  color: var(--text-on-accent);
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -1437,7 +1435,7 @@
 .rss-dashboard-dropdown-controls .rss-dashboard-refresh-button:hover {
   border-color: var(--rss-dashboard-dropdown-accent-hover);
   background: var(--rss-dashboard-dropdown-accent-hover);
-  color: #fff;
+  color: var(--text-on-accent);
 }
 
 .rss-dashboard-mark-all-row {
@@ -1737,11 +1735,11 @@
 }
 
 .rss-dashboard-header-feed-icon.video svg {
-  color: #ff0000;
+  color: red;
 }
 
 .rss-dashboard-header-feed-icon.podcast svg {
-  color: #8e44ad;
+  color: var(--text-accent);
 }
 
 .rss-dashboard-header-favicon {
