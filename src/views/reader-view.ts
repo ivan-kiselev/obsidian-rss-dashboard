@@ -1038,6 +1038,12 @@ export class ReaderView extends ItemView {
       const parser = new DOMParser();
       const doc = parser.parseFromString(html, "text/html");
 
+      // Strip executable payloads from the feed HTML before it enters the
+      // sandboxed iframe. The sandbox still has `allow-scripts` so our own
+      // postHeight/link-rewrite snippet runs, but no alien script remains in
+      // the document to be executed.
+      this.stripFeedScripts(doc);
+
       // Promote lazy-loaded image attributes to `src` before URL resolution.
       this.normalizeLazyImages(doc);
 
@@ -1852,6 +1858,55 @@ ${bodyHtml}
       !!block.querySelector("img, figure, picture") &&
       this.getNormalizedBlockText(block).length < 40
     );
+  }
+
+  private stripFeedScripts(doc: Document): void {
+    if (!doc.body) return;
+
+    // Remove <script> outright (including SVG <script>).
+    doc.querySelectorAll("script").forEach((el) => el.remove());
+
+    // Drop <meta http-equiv="refresh"> redirects, which can run in <head>
+    // contexts the parser preserves when parsing fragments.
+    doc.querySelectorAll('meta[http-equiv="refresh" i]').forEach((el) => el.remove());
+
+    // Strip nested iframes. Their `src` would load in our sandbox with
+    // `allow-scripts`, effectively giving the alien content a script context.
+    doc.querySelectorAll("iframe").forEach((el) => el.remove());
+
+    // Some objects/embeds can execute (Flash, plugins, scripted SVGs via <object data="...svg">).
+    doc.querySelectorAll("object, embed").forEach((el) => el.remove());
+
+    // Walk every element: strip inline event handlers and javascript: URLs.
+    const all = doc.body.getElementsByTagName("*");
+    for (let i = 0; i < all.length; i++) {
+      const el = all[i];
+      // `attributes` is a live list; snapshot the names first.
+      const attrNames = Array.from(el.attributes).map((a) => a.name);
+      for (const name of attrNames) {
+        if (name.toLowerCase().startsWith("on")) {
+          el.removeAttribute(name);
+          continue;
+        }
+        if (name === "href" || name === "src" || name === "xlink:href" || name === "formaction" || name === "action") {
+          const value = el.getAttribute(name) || "";
+          // Reject any URL whose scheme is javascript: / vbscript: / data:text/html
+          // (data: URLs targeted at images stay; only HTML payloads are dangerous).
+          const trimmed = value.trim().toLowerCase();
+          if (
+            trimmed.startsWith("javascript:") ||
+            trimmed.startsWith("vbscript:") ||
+            trimmed.startsWith("data:text/html")
+          ) {
+            if (name === "href" || name === "xlink:href") {
+              el.setAttribute(name, "#");
+            } else {
+              el.removeAttribute(name);
+            }
+          }
+        }
+      }
+    }
   }
 
   private normalizeLazyImages(doc: Document): void {
