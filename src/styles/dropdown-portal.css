@@ -257,8 +257,16 @@
   position: relative;
 }
 
-.rss-dashboard-filter-menu-item:hover {
+.rss-dashboard-filter-menu-item:hover,
+.rss-dashboard-filter-menu-item.rss-dashboard-kbd-focus {
   background-color: var(--background-modifier-hover);
+}
+
+.rss-dashboard-filter-menu-item.rss-dashboard-kbd-focus,
+.rss-dashboard-filter-logic-btn.rss-dashboard-kbd-focus,
+.rss-dashboard-filter-apply-btn.rss-dashboard-kbd-focus {
+  outline: 1px solid var(--background-modifier-border-focus, var(--interactive-accent));
+  outline-offset: -1px;
 }
 
 .rss-dashboard-filter-menu-item.empty {

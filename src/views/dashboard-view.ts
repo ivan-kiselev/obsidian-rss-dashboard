@@ -471,6 +471,9 @@ export class RssDashboardView extends ItemView {
         onOpenArticleKeepFocus: (article) => {
           this.handleArticleOpenKeepFocus(article);
         },
+        onOpenArticleInBrowser: (article) => {
+          this.openArticleInExternalBrowser(article);
+        },
         onOpenSavedArticle: (article) => {
           void this.handleOpenSavedArticle(article);
         },

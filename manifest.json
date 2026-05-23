@@ -1,6 +1,6 @@
 {
-	"id": "rss-dashboard",
-	"name": "RSS Dashboard",
+	"id": "rss-dashboard-local",
+	"name": "RSS Dashboard (local)",
 	"version": "2.2.0",
 	"minAppVersion": "1.1.0",
 	"description": "A dashboard for organizing and consuming RSS feeds, YouTube channels, and podcasts with smart tagging, media playback, and seamless content flow.",

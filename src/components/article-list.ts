@@ -55,6 +55,7 @@ interface ArticleListCallbacks {
   onMarkAllAsUnread?: () => void;
   onCloseReader?: () => void;
   onOpenArticleKeepFocus?: (article: FeedItem) => void;
+  onOpenArticleInBrowser?: (article: FeedItem) => void;
   onPersistSettings?: () => Promise<void> | void;
   onOpenTagsSettings?: () => Promise<void> | void;
   onTagsMutated?: () => void;
@@ -139,6 +140,7 @@ export class ArticleList {
     // to reduce this file's length and complexity. Legacy methods like renderHeader(),
     // createControls(), and showFiltersMenu() now live in those respective classes.
     this.header = new ArticleHeader(
+      this.app,
       this.container,
       this.settings,
       this.title,
@@ -245,6 +247,18 @@ export class ArticleList {
   /** Ask the host to close any open reader leaf / inline reader. */
   public closeOpenedReader(): void {
     this.callbacks.onCloseReader?.();
+  }
+
+  /** Open the multi-filter menu (delegates to the host's filter handler). */
+  public openFiltersMenu(): void {
+    this.callbacks.onOpenViewFilters?.();
+  }
+
+  /** Open the currently-selected article in the system default browser. */
+  public openSelectedInBrowser(): void {
+    const article = this.selectedArticle;
+    if (!article) return;
+    this.callbacks.onOpenArticleInBrowser?.(article);
   }
 
   /**
@@ -355,6 +369,24 @@ export class ArticleList {
         keys: [{ key: "t" }],
         action: () => {
           list()?.openTagPickerOnSelected();
+        },
+      },
+      {
+        id: "articleList.openFilters",
+        group: "Article list",
+        description: "Open filters menu",
+        keys: [{ key: "f" }],
+        action: () => {
+          list()?.openFiltersMenu();
+        },
+      },
+      {
+        id: "articleList.openInBrowser",
+        group: "Article list",
+        description: "Open selected article in default browser",
+        keys: [{ key: "b" }],
+        action: () => {
+          list()?.openSelectedInBrowser();
         },
       },
     ];

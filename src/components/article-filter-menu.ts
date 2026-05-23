@@ -1,4 +1,4 @@
-import { setIcon } from "obsidian";
+import { App, Scope, setIcon } from "obsidian";
 import { RssDashboardSettings } from "../types/types";
 
 export interface FilterChangeEvent {
@@ -31,11 +31,13 @@ export interface ArticleFilterCallbacks {
  * This component is decoupled from ArticleList via the ArticleFilterCallbacks interface.
  */
 export class ArticleFilterMenu {
+  private app: App;
   private settings: RssDashboardSettings;
   private statusFilters: Set<string>;
   private tagFilters: Set<string>;
   private filterLogic: "AND" | "OR";
   private callbacks: ArticleFilterCallbacks;
+  private pickerScope: Scope | null = null;
 
   /**
    * Renders the filter menu UI into a portal (document.body).
@@ -55,12 +57,14 @@ export class ArticleFilterMenu {
   }> = [];
 
   constructor(
+    app: App,
     settings: RssDashboardSettings,
     statusFilters: Set<string>,
     tagFilters: Set<string>,
     filterLogic: "AND" | "OR",
     callbacks: ArticleFilterCallbacks
   ) {
+    this.app = app;
     this.settings = settings;
     this.statusFilters = statusFilters;
     this.tagFilters = tagFilters;
@@ -416,6 +420,75 @@ export class ArticleFilterMenu {
         }
       );
     }, 0);
+
+    // ── Keyboard navigation ─────────────────────────────────────────────────
+    // Same interaction story as the tags picker: j/k walks navigable items,
+    // Space toggles the highlighted item AND commits (via the Apply button)
+    // AND closes the menu. Esc/h/f close without committing.
+    const HIGHLIGHT_CLASS = "rss-dashboard-kbd-focus";
+    let highlightIndex = -1;
+
+    const getNavigableElements = (): HTMLElement[] =>
+      Array.from(
+        menuPortal.querySelectorAll<HTMLElement>(
+          ".rss-dashboard-filter-logic-btn, .rss-dashboard-filter-menu-item, .rss-dashboard-filter-apply-btn",
+        ),
+      );
+
+    const applyHighlight = (index: number): void => {
+      const items = getNavigableElements();
+      if (items.length === 0) {
+        highlightIndex = -1;
+        return;
+      }
+      const clamped = ((index % items.length) + items.length) % items.length;
+      items.forEach((el, i) => {
+        el.classList.toggle(HIGHLIGHT_CLASS, i === clamped);
+      });
+      items[clamped]?.scrollIntoView({ block: "nearest" });
+      highlightIndex = clamped;
+    };
+
+    const activateHighlighted = (): void => {
+      const items = getNavigableElements();
+      const target = items[highlightIndex];
+      if (!target) return;
+      // Click() fires the item's handler (toggles checkbox or sets logic),
+      // then we trigger the Apply button to commit and close in one keystroke.
+      target.click();
+      if (!target.classList.contains("rss-dashboard-filter-apply-btn")) {
+        applyBtn.click();
+      }
+    };
+
+    const scope = new Scope(this.app.scope);
+    const handled = (fn: () => void) => () => {
+      fn();
+      return false;
+    };
+    scope.register([], "j", handled(() =>
+      applyHighlight(highlightIndex < 0 ? 0 : highlightIndex + 1),
+    ));
+    scope.register([], "ArrowDown", handled(() =>
+      applyHighlight(highlightIndex < 0 ? 0 : highlightIndex + 1),
+    ));
+    scope.register([], "k", handled(() =>
+      applyHighlight(highlightIndex < 0 ? 0 : highlightIndex - 1),
+    ));
+    scope.register([], "ArrowUp", handled(() =>
+      applyHighlight(highlightIndex < 0 ? 0 : highlightIndex - 1),
+    ));
+    scope.register([], " ", handled(activateHighlighted));
+    scope.register([], "Enter", handled(activateHighlighted));
+    scope.register([], "Escape", handled(() => this.close()));
+    scope.register([], "h", handled(() => this.close()));
+    scope.register([], "f", handled(() => this.close()));
+    this.app.keymap.pushScope(scope);
+    this.pickerScope = scope;
+
+    if (getNavigableElements().length > 0) {
+      applyHighlight(0);
+    }
   }
 
   // Commit the staged filter state in one batch event.
@@ -548,6 +621,10 @@ export class ArticleFilterMenu {
 
   // Remove the active portal and detach any temporary listeners.
   private close(): void {
+    if (this.pickerScope) {
+      this.app.keymap.popScope(this.pickerScope);
+      this.pickerScope = null;
+    }
     if (this.activeFilterOutsideListenerCleanup) {
       this.activeFilterOutsideListenerCleanup();
       this.activeFilterOutsideListenerCleanup = null;

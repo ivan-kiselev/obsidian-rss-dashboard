@@ -1,4 +1,4 @@
-import { setIcon } from "obsidian";
+import { App, setIcon } from "obsidian";
 import { RssDashboardSettings } from "../types/types";
 import { TABLET_LAYOUT_MAX_WIDTH } from "../utils/platform-utils";
 import { ArticleFilterMenu, FilterChangeEvent } from "./article-filter-menu";
@@ -39,6 +39,7 @@ type MenuOptionEntries = Array<[label: string, value: string]>;
  * - View style selector (List, Card, Feed)
  */
 export class ArticleHeader {
+  private app: App;
   private container: HTMLElement;
   private settings: RssDashboardSettings;
   private title: string;
@@ -65,6 +66,7 @@ export class ArticleHeader {
   private filterLogic: "AND" | "OR";
 
   constructor(
+    app: App,
     container: HTMLElement,
     settings: RssDashboardSettings,
     title: string,
@@ -75,6 +77,7 @@ export class ArticleHeader {
     filterLogic: "AND" | "OR",
     callbacks: ArticleHeaderCallbacks,
   ) {
+    this.app = app;
     this.container = container;
     this.settings = settings;
     this.title = title;
@@ -559,6 +562,7 @@ export class ArticleHeader {
 
   private showFiltersMenu(btn: HTMLElement) {
     const menu = new ArticleFilterMenu(
+      this.app,
       this.settings,
       this.statusFilters,
       this.tagFilters,
