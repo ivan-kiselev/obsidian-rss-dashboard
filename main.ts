@@ -37,6 +37,7 @@ import {
   formatFeedParseNoticeMessage,
 } from "./src/services/feed-parser";
 import { ArticleSaver } from "./src/services/article-saver";
+import { KeyboardRegistry } from "./src/services/keyboard";
 import { BackupService } from "./src/services/backup-service";
 import { FolderService } from "./src/services/folder-service";
 import { ImportExportService } from "./src/services/import-export-service";
@@ -76,6 +77,7 @@ export default class RssDashboardPlugin extends Plugin {
   settings!: RssDashboardSettings;
   feedParser!: FeedParser;
   articleSaver!: ArticleSaver;
+  public readonly keyboardRegistry = new KeyboardRegistry();
   private backupService!: BackupService;
   private folderService!: FolderService;
   private importExportService!: ImportExportService;

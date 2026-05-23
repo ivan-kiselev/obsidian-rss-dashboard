@@ -1,4 +1,4 @@
-import { Notice, Menu, MenuItem, setIcon, Setting } from "obsidian";
+import { App, Notice, Menu, MenuItem, setIcon, Setting } from "obsidian";
 import { FeedItem, RssDashboardSettings, Tag } from "../types/types";
 import { ArticleHeader } from "./article-header";
 import { ArticleEmptyState } from "./article-empty-state";
@@ -17,11 +17,13 @@ import {
   PAGE_SIZE_OPTIONS,
 } from "../utils/page-size-options";
 import { computeResultsRange } from "../utils/pagination-utils";
+import type { ShortcutDefinition } from "../services/keyboard";
 
 const MAX_VISIBLE_TAGS = 6;
 
 interface ArticleListCallbacks {
   onArticleClick: (article: FeedItem) => void;
+  onSelectionChange?: (article: FeedItem) => void;
   onToggleViewStyle: (style: "list" | "card" | "feed") => void;
   onRefreshFeeds: () => Promise<void>;
   onSearch: (query: string) => void;
@@ -51,12 +53,15 @@ interface ArticleListCallbacks {
   onMarkPageAsRead?: () => void;
   onMarkAllAsRead?: () => void;
   onMarkAllAsUnread?: () => void;
+  onCloseReader?: () => void;
+  onOpenArticleKeepFocus?: (article: FeedItem) => void;
   onPersistSettings?: () => Promise<void> | void;
   onOpenTagsSettings?: () => Promise<void> | void;
   onTagsMutated?: () => void;
 }
 
 export class ArticleList {
+  private app: App;
   private container: HTMLElement;
   private settings: RssDashboardSettings;
   private title: string;
@@ -94,6 +99,7 @@ export class ArticleList {
   private pendingCardTopAnchor: boolean = false;
 
   constructor(
+    app: App,
     container: HTMLElement,
     settings: RssDashboardSettings,
     title: string,
@@ -111,6 +117,7 @@ export class ArticleList {
     currentFeedUrl?: string | null,
     showFeedSource: boolean = true,
   ) {
+    this.app = app;
     this.container = container;
     this.settings = settings;
     this.title = title;
@@ -179,6 +186,178 @@ export class ArticleList {
         },
       },
     );
+  }
+
+  /**
+   * Move the selection cursor by `delta` positions within the current page's
+   * articles (no auto-open). Updates internal selection, refreshes the DOM
+   * active state, scrolls into view, and notifies the host via
+   * `onSelectionChange`.
+   */
+  public moveSelection(delta: number): void {
+    if (!this.articles.length) return;
+    const currentIndex = this.selectedArticle
+      ? this.articles.findIndex((a) => a.guid === this.selectedArticle?.guid)
+      : -1;
+    let nextIndex: number;
+    if (currentIndex < 0) {
+      nextIndex = delta > 0 ? 0 : this.articles.length - 1;
+    } else {
+      nextIndex = Math.min(
+        Math.max(currentIndex + delta, 0),
+        this.articles.length - 1,
+      );
+    }
+    if (nextIndex === currentIndex) return;
+    const next = this.articles[nextIndex];
+    if (!next) return;
+    this.setSelectedArticle(next);
+    // Snap the scroller fully to the edge when landing on the first or last
+    // article — block: "nearest" stops short of the actual top/bottom of the
+    // list, so the user can't see anything above the first item or below the
+    // last otherwise.
+    const listEl = this.getArticlesListElement();
+    if (listEl) {
+      if (nextIndex === 0) {
+        listEl.scrollTop = 0;
+      } else if (nextIndex === this.articles.length - 1) {
+        listEl.scrollTop = listEl.scrollHeight;
+      }
+    }
+    this.callbacks.onSelectionChange?.(next);
+  }
+
+  /**
+   * Open the currently-selected article. Uses the keep-focus handler when the
+   * host provides one (so keyboard `l` doesn't steal focus from the article
+   * list), falling back to the regular click handler.
+   */
+  public openSelectedArticle(): void {
+    const article = this.selectedArticle;
+    if (!article) return;
+    if (this.callbacks.onOpenArticleKeepFocus) {
+      this.callbacks.onOpenArticleKeepFocus(article);
+    } else {
+      this.callbacks.onArticleClick(article);
+    }
+  }
+
+  /** Ask the host to close any open reader leaf / inline reader. */
+  public closeOpenedReader(): void {
+    this.callbacks.onCloseReader?.();
+  }
+
+  /**
+   * Flip the read flag on the currently-selected article, if any. Persists
+   * without triggering a full list re-render — only the affected row is
+   * patched in place, mirroring the click-driven toggle behavior.
+   */
+  public toggleSelectedReadState(): void {
+    const article = this.selectedArticle;
+    if (!article) return;
+    const next = !article.read;
+    article.read = next;
+    this.callbacks.onArticleUpdate(article, { read: next }, false);
+    this.updateArticleInPlace(article);
+  }
+
+  /** Invoke the mark-all-as-read callback for the current view. */
+  public markAllReadInCurrentView(): void {
+    this.callbacks.onMarkAllAsRead?.();
+  }
+
+  /**
+   * Open the tag-picker dropdown anchored to the selected article. Uses the
+   * row's existing tag-toggle icon as the anchor when present; otherwise
+   * falls back to the article element itself (positions near the row).
+   */
+  public openTagPickerOnSelected(): void {
+    const article = this.selectedArticle;
+    if (!article) return;
+    const articleEl = this.container.querySelector<HTMLElement>(
+      `#article-${CSS.escape(article.guid)}`,
+    );
+    if (!articleEl) return;
+    const anchor =
+      articleEl.querySelector<HTMLElement>(".rss-dashboard-tags-toggle") ??
+      articleEl;
+    this.showTagsDropdownPortal(anchor, article);
+  }
+
+  /**
+   * Shortcut definitions for the article list. The factory takes a getter so
+   * bindings stay valid across `ArticleList` instance churn (a new instance
+   * is created on every dashboard re-render).
+   */
+  public static getShortcuts(
+    getList: () => ArticleList | null | undefined,
+  ): ShortcutDefinition[] {
+    const list = () => getList() ?? null;
+    return [
+      {
+        id: "articleList.next",
+        group: "Article list",
+        description: "Next article",
+        keys: [{ key: "j" }, { key: "ArrowDown" }],
+        action: () => {
+          list()?.moveSelection(1);
+        },
+      },
+      {
+        id: "articleList.prev",
+        group: "Article list",
+        description: "Previous article",
+        keys: [{ key: "k" }, { key: "ArrowUp" }],
+        action: () => {
+          list()?.moveSelection(-1);
+        },
+      },
+      {
+        id: "articleList.toggleRead",
+        group: "Article list",
+        description: "Toggle read/unread on selected article",
+        keys: [{ key: " " }],
+        action: () => {
+          list()?.toggleSelectedReadState();
+        },
+      },
+      {
+        id: "articleList.markAllRead",
+        group: "Article list",
+        description: "Mark all articles in current view as read",
+        keys: [{ key: "A", modifiers: ["Shift"] }],
+        action: () => {
+          list()?.markAllReadInCurrentView();
+        },
+      },
+      {
+        id: "articleList.openSelected",
+        group: "Article list",
+        description: "Open selected article",
+        keys: [{ key: "l" }],
+        action: () => {
+          list()?.openSelectedArticle();
+        },
+      },
+      {
+        id: "articleList.closeReader",
+        group: "Article list",
+        description: "Close opened article",
+        keys: [{ key: "h" }],
+        action: () => {
+          list()?.closeOpenedReader();
+        },
+      },
+      {
+        id: "articleList.openTagPicker",
+        group: "Article list",
+        description: "Open tag picker for selected article",
+        keys: [{ key: "t" }],
+        action: () => {
+          list()?.openTagPickerOnSelected();
+        },
+      },
+    ];
   }
 
   public destroy(): void {
@@ -2330,6 +2509,7 @@ export class ArticleList {
     }
 
     const cleanup = createTagsDropdownPortal({
+      app: this.app,
       anchor: toggleElement,
       settings: this.settings,
       item: article,

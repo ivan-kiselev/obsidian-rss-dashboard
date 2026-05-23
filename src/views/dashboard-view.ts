@@ -2,6 +2,7 @@ import {
   ItemView,
   WorkspaceLeaf,
   Notice,
+  Scope,
   TFile,
   requireApiVersion,
   Platform,
@@ -23,6 +24,7 @@ import type {
 } from "../../main";
 import { Sidebar } from "../components/sidebar";
 import { ArticleList } from "../components/article-list";
+import { ShortcutContext } from "../services/keyboard";
 import { ArticleSaver } from "../services/article-saver";
 import { ArticleRenderer } from "../components/article-renderer";
 import { ReaderView, RSS_READER_VIEW_TYPE } from "./reader-view";
@@ -92,6 +94,7 @@ export class RssDashboardView extends ItemView {
   private lastViewportMobileSidebarMode: boolean | null = null;
   private inlineArticle: FeedItem | null = null;
   private articleRenderer: ArticleRenderer | null = null;
+  private shortcutContext: ShortcutContext | null = null;
 
   // ── Highlight match stats ─────────────────────────────────────────────────
   // Populated by computeHighlightMatchCounts() on every render cycle (before
@@ -249,6 +252,19 @@ export class RssDashboardView extends ItemView {
     this.registerDomEvent(window, "resize", () => {
       this.handleViewportResizeModeTransition();
     });
+
+    if (!this.shortcutContext) {
+      if (!this.scope) {
+        this.scope = new Scope(this.app.scope);
+      }
+      this.shortcutContext = new ShortcutContext(
+        this.scope,
+        this.plugin.keyboardRegistry,
+      );
+      this.shortcutContext.registerMany(
+        ArticleList.getShortcuts(() => this.articleList),
+      );
+    }
 
     const container = this.containerEl.children[1];
     container.addClass("rss-dashboard-container");
@@ -413,6 +429,7 @@ export class RssDashboardView extends ItemView {
 
     const titleInfo = this.getArticlesTitleInfo();
     this.articleList = new ArticleList(
+      this.app,
       articlesContainer,
       this.settings,
       titleInfo.title,
@@ -422,6 +439,9 @@ export class RssDashboardView extends ItemView {
       {
         onArticleClick: (article) => {
           void this.handleArticleClick(article);
+        },
+        onSelectionChange: (article) => {
+          this.selectedArticle = article;
         },
         onToggleViewStyle: this.handleToggleViewStyle.bind(this),
         onRefreshFeeds: this.handleRefreshFeeds.bind(this),
@@ -444,6 +464,12 @@ export class RssDashboardView extends ItemView {
         },
         onArticleSave: (article) => {
           void this.handleArticleSave(article);
+        },
+        onCloseReader: () => {
+          this.handleCloseReader();
+        },
+        onOpenArticleKeepFocus: (article) => {
+          this.handleArticleOpenKeepFocus(article);
         },
         onOpenSavedArticle: (article) => {
           void this.handleOpenSavedArticle(article);
@@ -1728,7 +1754,10 @@ export class RssDashboardView extends ItemView {
   }
 
   // --- Article open/save actions ---
-  private async handleArticleClick(article: FeedItem): Promise<void> {
+  private async handleArticleClick(
+    article: FeedItem,
+    options?: { preserveFocus?: boolean },
+  ): Promise<void> {
     const readerLocation = this.getReaderViewLocation();
     const shouldForceCardTopAnchor =
       this.settings.viewStyle === "card" &&
@@ -1742,7 +1771,7 @@ export class RssDashboardView extends ItemView {
     if (!article.read && this.settings.display.autoMarkReadOnOpen) {
       await this.updateArticleStatus(article, { read: true }, false);
     }
-    await this.openArticleInConfiguredReaderLocation(article);
+    await this.openArticleInConfiguredReaderLocation(article, options);
 
     if (shouldForceCardTopAnchor) {
       // Clear any stale ref from a previous rapid click.
@@ -1766,13 +1795,16 @@ export class RssDashboardView extends ItemView {
     }
   }
 
-  private async openArticleInNewTab(article: FeedItem): Promise<WorkspaceLeaf> {
+  private async openArticleInNewTab(
+    article: FeedItem,
+    options?: { preserveFocus?: boolean },
+  ): Promise<WorkspaceLeaf> {
     const { workspace } = this.app;
     const leaf = workspace.getLeaf(Platform.isMobile ? "tab" : "split");
     if (leaf) {
       await leaf.setViewState({
         type: RSS_READER_VIEW_TYPE,
-        active: true,
+        active: !options?.preserveFocus,
       });
       await workspace.revealLeaf(leaf);
       if (leaf.view instanceof ReaderView) {
@@ -1788,11 +1820,12 @@ export class RssDashboardView extends ItemView {
   private async openArticleInSpecificLeaf(
     article: FeedItem,
     leaf: WorkspaceLeaf,
+    options?: { preserveFocus?: boolean },
   ): Promise<void> {
     if (leaf) {
       await leaf.setViewState({
         type: RSS_READER_VIEW_TYPE,
-        active: true,
+        active: !options?.preserveFocus,
       });
       await this.app.workspace.revealLeaf(leaf);
       if (leaf.view instanceof ReaderView) {
@@ -1801,6 +1834,37 @@ export class RssDashboardView extends ItemView {
         const relatedItems = this.getRelatedItems(article);
         await view.displayItem(article, relatedItems);
       }
+    }
+  }
+
+  private handleArticleOpenKeepFocus(article: FeedItem): void {
+    const dashboardLeaf = this.leaf;
+    // Fire-and-forget: the reader leaf's content fetch can take seconds.
+    // Awaiting it would block keyboard shortcuts (e.g. `h` to close) until
+    // the article fully loaded. `preserveFocus: true` passes active:false to
+    // setViewState so the reader pane never claims focus to begin with.
+    void this.handleArticleClick(article, { preserveFocus: true });
+    // Belt-and-suspenders: revealLeaf on a collapsed sidebar can briefly
+    // focus the just-expanded pane regardless of active:false. Re-focusing
+    // the dashboard on the next frame ensures the keyboard scope stays armed.
+    requestAnimationFrame(() => {
+      this.app.workspace.setActiveLeaf(dashboardLeaf, { focus: true });
+    });
+  }
+
+  private handleCloseReader(): void {
+    if (this.inlineArticle) {
+      this.inlineArticle = null;
+      void this.render();
+      return;
+    }
+    const readerLeaves =
+      this.app.workspace.getLeavesOfType(RSS_READER_VIEW_TYPE);
+    for (const leaf of readerLeaves) {
+      if (leaf.view instanceof ReaderView && leaf.view.isPodcastPlaying()) {
+        continue;
+      }
+      leaf.detach();
     }
   }
 
@@ -2517,6 +2581,8 @@ export class RssDashboardView extends ItemView {
       this.articleList.destroy();
     }
     this.sidebar?.destroy();
+    this.shortcutContext?.unregisterAll();
+    this.shortcutContext = null;
     this.resizeHandle = null;
     this.dashboardContainer = null;
   }
@@ -3025,6 +3091,7 @@ export class RssDashboardView extends ItemView {
 
   private async openArticleInConfiguredReaderLocation(
     article: FeedItem,
+    options?: { preserveFocus?: boolean },
   ): Promise<void> {
     const readerLocation = this.getReaderViewLocation();
 
@@ -3049,17 +3116,21 @@ export class RssDashboardView extends ItemView {
         reusablePodcastLeaf &&
         !podcastPlayingLeaves.includes(reusablePodcastLeaf)
       ) {
-        await this.openArticleInSpecificLeaf(article, reusablePodcastLeaf);
+        await this.openArticleInSpecificLeaf(
+          article,
+          reusablePodcastLeaf,
+          options,
+        );
         return;
       }
 
       if (targetLeaf && !podcastPlayingLeaves.includes(targetLeaf)) {
         this.articleReaderLeafWhilePodcast = targetLeaf;
-        await this.openArticleInSpecificLeaf(article, targetLeaf);
+        await this.openArticleInSpecificLeaf(article, targetLeaf, options);
         return;
       }
 
-      const newLeaf = await this.openArticleInNewTab(article);
+      const newLeaf = await this.openArticleInNewTab(article, options);
       this.articleReaderLeafWhilePodcast = newLeaf;
       return;
     }
@@ -3073,11 +3144,11 @@ export class RssDashboardView extends ItemView {
     }
 
     if (targetLeaf) {
-      await this.openArticleInSpecificLeaf(article, targetLeaf);
+      await this.openArticleInSpecificLeaf(article, targetLeaf, options);
       return;
     }
 
-    await this.openArticleInNewTab(article);
+    await this.openArticleInNewTab(article, options);
   }
 
   private renderInlineArticle(container: HTMLElement): void {

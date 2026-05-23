@@ -352,8 +352,14 @@
   gap: 5px;
 }
 
-.rss-dashboard-tag-item:hover {
+.rss-dashboard-tag-item:hover,
+.rss-dashboard-tag-item.rss-dashboard-tag-item-kbd-focus {
   background-color: var(--background-modifier-hover);
+}
+
+.rss-dashboard-tag-item.rss-dashboard-tag-item-kbd-focus {
+  outline: 1px solid var(--background-modifier-border-focus, var(--interactive-accent));
+  outline-offset: -1px;
 }
 
 .rss-dashboard-tag-item-separator {

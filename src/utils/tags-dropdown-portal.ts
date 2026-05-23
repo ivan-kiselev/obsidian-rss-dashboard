@@ -1,8 +1,9 @@
-import { Notice, setIcon } from "obsidian";
+import { App, Notice, Scope, setIcon } from "obsidian";
 import type { FeedItem, RssDashboardSettings, Tag } from "../types/types";
 import { showEditTagModal } from "./tag-utils";
 
 export type TagsDropdownPortalOptions = {
+  app: App;
   anchor: HTMLElement;
   settings: RssDashboardSettings;
   item: FeedItem;
@@ -18,16 +19,30 @@ export function createTagsDropdownPortal(
   options: TagsDropdownPortalOptions,
 ): () => void {
   const {
+    app,
     anchor,
     settings,
     item,
-    onTagAssignmentChange,
+    onTagAssignmentChange: rawOnTagAssignmentChange,
     onPersistSettings,
     onAfterSettingsTagsMutated,
     onOpenTagsSettings,
     appContainer,
     onClosed,
   } = options;
+
+  // Auto-close the dropdown after any tag assignment change (keyboard Space,
+  // mouse click on row or checkbox, or inline-add submit) — the workflow is
+  // "open picker → smash space → done", so leaving the dropdown lingering
+  // requires an extra Esc keystroke that nobody wants to make.
+  const onTagAssignmentChange = (tag: Tag, checked: boolean): void => {
+    rawOnTagAssignmentChange(tag, checked);
+    // Defer so the existing 200 ms processing pulse + DOM patch still runs
+    // visibly before the dropdown unmounts.
+    targetWindow.setTimeout(() => {
+      closeDropdown();
+    }, 150);
+  };
 
   const targetDocument = anchor.ownerDocument;
   const targetBody = targetDocument.body;
@@ -378,7 +393,51 @@ export function createTagsDropdownPortal(
 
   let removeDesktopListener: (() => void) | null = null;
   let removeViewportListener: (() => void) | null = null;
+  let removeKeyboardListener: (() => void) | null = null;
   let isClosed = false;
+
+  // ── Keyboard navigation inside the dropdown ──────────────────────────────
+  // The dropdown opens via the `t` shortcut, which doesn't naturally focus
+  // any control inside the popup. Without explicit handling, j/k would keep
+  // moving the article-list selection underneath and Esc would do nothing.
+  // We capture keys at document level (capture phase) so they're intercepted
+  // before the article-list Scope sees them.
+  const HIGHLIGHT_CLASS = "rss-dashboard-tag-item-kbd-focus";
+  let highlightIndex = -1;
+
+  const getTagItems = (): HTMLElement[] =>
+    Array.from(
+      tagsListContainer.querySelectorAll<HTMLElement>(
+        ".rss-dashboard-tag-item",
+      ),
+    );
+
+  const applyHighlight = (index: number): void => {
+    const items = getTagItems();
+    if (items.length === 0) {
+      highlightIndex = -1;
+      return;
+    }
+    const clamped = ((index % items.length) + items.length) % items.length;
+    items.forEach((el, i) => {
+      el.classList.toggle(HIGHLIGHT_CLASS, i === clamped);
+    });
+    items[clamped]?.scrollIntoView({ block: "nearest" });
+    highlightIndex = clamped;
+  };
+
+  const toggleHighlighted = (): void => {
+    const items = getTagItems();
+    const target = items[highlightIndex];
+    if (!target) return;
+    const checkbox = target.querySelector<HTMLInputElement>(
+      ".rss-dashboard-tag-checkbox",
+    );
+    if (!checkbox) return;
+    checkbox.checked = !checkbox.checked;
+    checkbox.dispatchEvent(new Event("change", { bubbles: true }));
+  };
+
 
   function closeDropdown(): void {
     if (isClosed) {
@@ -391,7 +450,54 @@ export function createTagsDropdownPortal(
     removeDesktopListener = null;
     removeViewportListener?.();
     removeViewportListener = null;
+    removeKeyboardListener?.();
+    removeKeyboardListener = null;
     onClosed?.();
+  }
+
+  // Push a dedicated Scope onto Obsidian's keymap stack so our keys win
+  // against the article-list shortcuts (j/k/Space/t/h) that are registered
+  // on the dashboard view's scope underneath. Returning `false` from a
+  // handler tells Obsidian "I handled this; stop dispatching."
+  const pickerScope = new Scope(app.scope);
+  const handled = (fn: () => void) => () => {
+    fn();
+    return false;
+  };
+  pickerScope.register([], "j", handled(() => {
+    applyHighlight(highlightIndex < 0 ? 0 : highlightIndex + 1);
+  }));
+  pickerScope.register([], "ArrowDown", handled(() => {
+    applyHighlight(highlightIndex < 0 ? 0 : highlightIndex + 1);
+  }));
+  pickerScope.register([], "k", handled(() => {
+    applyHighlight(highlightIndex < 0 ? 0 : highlightIndex - 1);
+  }));
+  pickerScope.register([], "ArrowUp", handled(() => {
+    applyHighlight(highlightIndex < 0 ? 0 : highlightIndex - 1);
+  }));
+  pickerScope.register([], " ", handled(() => {
+    if (highlightIndex >= 0) toggleHighlighted();
+  }));
+  pickerScope.register([], "Enter", handled(() => {
+    if (highlightIndex >= 0) toggleHighlighted();
+  }));
+  pickerScope.register([], "Escape", handled(() => {
+    closeDropdown();
+  }));
+  pickerScope.register([], "h", handled(() => {
+    closeDropdown();
+  }));
+  pickerScope.register([], "t", handled(() => {
+    closeDropdown();
+  }));
+  app.keymap.pushScope(pickerScope);
+  removeKeyboardListener = () => {
+    app.keymap.popScope(pickerScope);
+  };
+
+  if (getTagItems().length > 0) {
+    applyHighlight(0);
   }
 
   if (isMobile) {

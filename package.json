@@ -8,6 +8,7 @@
     "dev": "node esbuild.config.mjs",
     "check:css-scope": "node scripts/check-css-scope.js",
     "build": "npm run check:css-scope && eslint . --ext .ts && tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+    "install:local": "node esbuild.config.mjs production && cp main.js styles.css manifest.json \"/Users/ivan/Library/Mobile Documents/iCloud~md~obsidian/Documents/Default/.obsidian/plugins/obsidian-rss-dashboard/\"",
     "lint": "eslint . --ext .ts",
     "test:unit": "vitest run --config vitest.config.mjs",
     "hooks:install": "node scripts/setup-git-hooks.mjs",
