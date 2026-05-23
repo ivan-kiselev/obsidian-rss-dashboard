@@ -2211,6 +2211,7 @@ ${bodyHtml}
 
     const item = this.currentItem;
     const cleanup = createTagsDropdownPortal({
+      app: this.app,
       anchor,
       settings: this.settings,
       item,
