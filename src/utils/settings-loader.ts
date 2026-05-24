@@ -277,6 +277,103 @@ export function migrateSettings(settings: RssDashboardSettings): boolean {
   return didChange;
 }
 
+/**
+ * Merge per-item sync flags from a remote settings snapshot into the local
+ * settings object in place. Only `read`, `starred`, `saved`, `savedFilePath`,
+ * and `tags` are merged — these are the fields users mutate per-item from any
+ * device. Feed list, folders, retention, etc. stay last-write-wins.
+ *
+ * **Use this only for incoming remote state from another device** (e.g. a
+ * file written by Obsidian Sync). The semantics are OR for flags and union
+ * for tags, which is correct when treating remote as additive — but wrong
+ * for own-write reconciliation: if the local user just untagged or
+ * unstarred an item, merging the (still-tagged) on-disk version back in
+ * would silently undo their action. Reconciliation happens on focus and on
+ * vault `modify` events; it must NOT run inside `saveSettings`.
+ */
+export function mergeRemoteItemFlags(
+  local: RssDashboardSettings,
+  remote: Partial<RssDashboardSettings> | null | undefined,
+): boolean {
+  if (!remote || !Array.isArray(remote.feeds)) {
+    return false;
+  }
+
+  const remoteByUrl = new Map<string, Feed>();
+  for (const feed of remote.feeds) {
+    if (feed && typeof feed.url === "string") {
+      remoteByUrl.set(feed.url, feed);
+    }
+  }
+
+  const keyOf = (item: FeedItem): string =>
+    canonicalizeItemIdentityUrl(item.guid || item.link || "") ||
+    item.guid ||
+    item.link ||
+    "";
+
+  const mergeTagsUnique = (
+    a: FeedItem["tags"],
+    b: FeedItem["tags"],
+  ): FeedItem["tags"] => {
+    const out: FeedItem["tags"] = [];
+    const seen = new Set<string>();
+    for (const tag of [...(a || []), ...(b || [])]) {
+      const k = (tag?.name || "").trim().toLowerCase();
+      if (!k || seen.has(k)) continue;
+      seen.add(k);
+      out.push(tag);
+    }
+    return out;
+  };
+
+  let didChange = false;
+
+  for (const localFeed of local.feeds || []) {
+    const remoteFeed = remoteByUrl.get(localFeed.url);
+    if (!remoteFeed || !Array.isArray(remoteFeed.items)) continue;
+
+    const remoteItems = new Map<string, FeedItem>();
+    for (const item of remoteFeed.items) {
+      const k = keyOf(item);
+      if (k) remoteItems.set(k, item);
+    }
+    if (remoteItems.size === 0) continue;
+
+    for (const localItem of localFeed.items || []) {
+      const k = keyOf(localItem);
+      if (!k) continue;
+      const remoteItem = remoteItems.get(k);
+      if (!remoteItem) continue;
+
+      if (remoteItem.read && !localItem.read) {
+        localItem.read = true;
+        didChange = true;
+      }
+      if (remoteItem.starred && !localItem.starred) {
+        localItem.starred = true;
+        didChange = true;
+      }
+      if (remoteItem.saved && !localItem.saved) {
+        localItem.saved = true;
+        didChange = true;
+      }
+      if (!localItem.savedFilePath && remoteItem.savedFilePath) {
+        localItem.savedFilePath = remoteItem.savedFilePath;
+        didChange = true;
+      }
+
+      const mergedTags = mergeTagsUnique(localItem.tags, remoteItem.tags);
+      if (mergedTags.length !== (localItem.tags || []).length) {
+        localItem.tags = mergedTags;
+        didChange = true;
+      }
+    }
+  }
+
+  return didChange;
+}
+
 export function dedupeAndNormalizeFeedItems(feeds: Feed[]): boolean {
   let didChange = false;
 

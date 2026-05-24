@@ -347,4 +347,172 @@ describe("settings-loader", () => {
       expect(feeds[0].items[0].guid).toBe("https://example.com/item");
     });
   });
+
+  // ── mergeRemoteItemFlags ────────────────────────────────────────────────────
+
+  describe("mergeRemoteItemFlags", () => {
+    function buildSettings(feeds: Feed[]): RssDashboardSettings {
+      return { ...DEFAULT_SETTINGS, feeds };
+    }
+
+    it("ORs remote read flag onto local unread item", async () => {
+      const { mergeRemoteItemFlags } =
+        await import("../../../src/utils/settings-loader");
+
+      const local = buildSettings([
+        createFeed({
+          items: [createFeedItem({ guid: "g1", read: false })],
+        }),
+      ]);
+      const remote = buildSettings([
+        createFeed({
+          items: [createFeedItem({ guid: "g1", read: true })],
+        }),
+      ]);
+
+      const changed = mergeRemoteItemFlags(local, remote);
+
+      expect(changed).toBe(true);
+      expect(local.feeds[0].items[0].read).toBe(true);
+    });
+
+    it("does not unset a local read flag when remote is unread", async () => {
+      const { mergeRemoteItemFlags } =
+        await import("../../../src/utils/settings-loader");
+
+      const local = buildSettings([
+        createFeed({
+          items: [createFeedItem({ guid: "g1", read: true })],
+        }),
+      ]);
+      const remote = buildSettings([
+        createFeed({
+          items: [createFeedItem({ guid: "g1", read: false })],
+        }),
+      ]);
+
+      const changed = mergeRemoteItemFlags(local, remote);
+
+      expect(changed).toBe(false);
+      expect(local.feeds[0].items[0].read).toBe(true);
+    });
+
+    it("ORs starred and saved independently", async () => {
+      const { mergeRemoteItemFlags } =
+        await import("../../../src/utils/settings-loader");
+
+      const local = buildSettings([
+        createFeed({
+          items: [
+            createFeedItem({
+              guid: "g1",
+              starred: false,
+              saved: true,
+            }),
+          ],
+        }),
+      ]);
+      const remote = buildSettings([
+        createFeed({
+          items: [
+            createFeedItem({
+              guid: "g1",
+              starred: true,
+              saved: false,
+            }),
+          ],
+        }),
+      ]);
+
+      mergeRemoteItemFlags(local, remote);
+
+      expect(local.feeds[0].items[0].starred).toBe(true);
+      expect(local.feeds[0].items[0].saved).toBe(true);
+    });
+
+    it("leaves items untouched when missing on the remote side", async () => {
+      const { mergeRemoteItemFlags } =
+        await import("../../../src/utils/settings-loader");
+
+      const local = buildSettings([
+        createFeed({
+          items: [createFeedItem({ guid: "g1", read: false })],
+        }),
+      ]);
+      const remote = buildSettings([createFeed({ items: [] })]);
+
+      const changed = mergeRemoteItemFlags(local, remote);
+
+      expect(changed).toBe(false);
+      expect(local.feeds[0].items[0].read).toBe(false);
+    });
+
+    it("matches items by guid even when feed url is the same", async () => {
+      const { mergeRemoteItemFlags } =
+        await import("../../../src/utils/settings-loader");
+
+      const local = buildSettings([
+        createFeed({
+          items: [
+            createFeedItem({ guid: "a", read: false }),
+            createFeedItem({ guid: "b", read: false }),
+          ],
+        }),
+      ]);
+      const remote = buildSettings([
+        createFeed({
+          items: [
+            createFeedItem({ guid: "b", read: true }),
+            createFeedItem({ guid: "c", read: true }),
+          ],
+        }),
+      ]);
+
+      mergeRemoteItemFlags(local, remote);
+
+      expect(local.feeds[0].items[0].read).toBe(false); // "a" untouched
+      expect(local.feeds[0].items[1].read).toBe(true); // "b" merged
+    });
+
+    it("fills in savedFilePath when missing locally but present remotely", async () => {
+      const { mergeRemoteItemFlags } =
+        await import("../../../src/utils/settings-loader");
+
+      const local = buildSettings([
+        createFeed({
+          items: [createFeedItem({ guid: "g1", savedFilePath: undefined })],
+        }),
+      ]);
+      const remote = buildSettings([
+        createFeed({
+          items: [
+            createFeedItem({
+              guid: "g1",
+              savedFilePath: "Articles/note.md",
+            }),
+          ],
+        }),
+      ]);
+
+      mergeRemoteItemFlags(local, remote);
+
+      expect(local.feeds[0].items[0].savedFilePath).toBe("Articles/note.md");
+    });
+
+    it("returns false and is a no-op when remote is null", async () => {
+      const { mergeRemoteItemFlags } =
+        await import("../../../src/utils/settings-loader");
+
+      const local = buildSettings([
+        createFeed({
+          items: [createFeedItem({ guid: "g1", read: false })],
+        }),
+      ]);
+
+      const changed = mergeRemoteItemFlags(local, null);
+
+      expect(changed).toBe(false);
+      expect(local.feeds[0].items[0].read).toBe(false);
+    });
+  });
 });

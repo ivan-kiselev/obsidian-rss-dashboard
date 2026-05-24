@@ -3,6 +3,7 @@ import {
   Notice,
   WorkspaceLeaf,
   Platform,
+  TAbstractFile,
   requireApiVersion,
 } from "obsidian";
 
@@ -51,6 +52,7 @@ import { normalizeRefreshIntervalMinutes } from "./src/utils/validation";
 import {
   dedupeAndNormalizeFeedItems,
   loadAndNormalizeSettings,
+  mergeRemoteItemFlags,
   migrateSettings,
 } from "./src/utils/settings-loader";
 import { applyAutomaticArticleTags } from "./src/utils/tag-utils";
@@ -88,6 +90,8 @@ export default class RssDashboardPlugin extends Plugin {
   public vaultAbsolutePath = "";
   private _beforeUnloadHandler: (() => void) | null = null;
   private hasCompletedStartupSavedArticleValidation = false;
+  private lastOwnSaveAtMs = 0;
+  private static readonly OWN_WRITE_SUPPRESS_WINDOW_MS = 1000;
   private static readonly FEED_REFRESH_CONCURRENCY = 4;
   private static readonly FEED_REFRESH_RENDER_THROTTLE_MS = 250;
 
@@ -552,6 +556,48 @@ export default class RssDashboardPlugin extends Plugin {
           }, autoRefreshIntervalMs),
         );
       }
+
+      // When the dashboard leaf becomes active (e.g. user switched back to
+      // this tab on desktop after using mobile), pick up read/starred flags
+      // that Obsidian Sync may have written to data.json since plugin load.
+      this.registerEvent(
+        this.app.workspace.on("active-leaf-change", (leaf) => {
+          if (!leaf || leaf.view?.getViewType?.() !== RSS_DASHBOARD_VIEW_TYPE) {
+            return;
+          }
+          void (async () => {
+            const changed = await this.reconcileFromDisk();
+            if (changed) {
+              const view = await this.getActiveDashboardView();
+              view?.refresh();
+            }
+          })();
+        }),
+      );
+
+      // Catch Obsidian Sync writes to data.json that arrive while the
+      // dashboard is already focused (active-leaf-change wouldn't fire).
+      // Skip events triggered by our own saves: saveSettings() bumps
+      // lastOwnSaveAtMs and we ignore any modify within the suppress window.
+      const dataFilePath = `${this.manifest.dir}/data.json`;
+      this.registerEvent(
+        this.app.vault.on("modify", (file: TAbstractFile) => {
+          if (file.path !== dataFilePath) return;
+          if (
+            Date.now() - this.lastOwnSaveAtMs <
+            RssDashboardPlugin.OWN_WRITE_SUPPRESS_WINDOW_MS
+          ) {
+            return;
+          }
+          void (async () => {
+            const changed = await this.reconcileFromDisk();
+            if (changed) {
+              const view = await this.getActiveDashboardView();
+              view?.refresh();
+            }
+          })();
+        }),
+      );
 
       if (shouldRefreshOnOpen()) {
         void this.refreshFeeds();
@@ -1473,7 +1519,38 @@ export default class RssDashboardPlugin extends Plugin {
   }
 
   async saveSettings() {
+    // In-memory state is the truth at write time. We intentionally do NOT
+    // merge with on-disk here: an OR-merge would silently undo local
+    // removals (e.g. user untagged an item, but on-disk still has the tag
+    // → union puts it back). Cross-device flag propagation is handled by
+    // reconcileFromDisk() on focus and the vault.on('modify') watcher,
+    // both of which only run when we *aren't* mid-write.
+    this.lastOwnSaveAtMs = Date.now();
     await this.saveData(this.settings);
+    this.lastOwnSaveAtMs = Date.now();
+  }
+
+  /**
+   * Re-read data.json and merge any externally-updated per-item flags (read,
+   * starred, saved, tags) into our in-memory settings. Intended to be called
+   * when the dashboard becomes active or the window regains focus, so changes
+   * synced from another device show up without requiring a plugin reload.
+   *
+   * Returns true if anything changed.
+   */
+  async reconcileFromDisk(): Promise<boolean> {
+    try {
+      const onDisk = (await this.loadData()) as
+        | Partial<RssDashboardSettings>
+        | null;
+      return mergeRemoteItemFlags(this.settings, onDisk);
+    } catch (error) {
+      console.error(
+        "[RSS Dashboard] reconcileFromDisk failed:",
+        error,
+      );
+      return false;
+    }
   }
 
   private isFeedExcludedFromRefresh(feed: Feed): boolean {
