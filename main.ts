@@ -3,7 +3,6 @@ import {
   Notice,
   WorkspaceLeaf,
   Platform,
-  TAbstractFile,
   requireApiVersion,
 } from "obsidian";
 
@@ -91,7 +90,10 @@ export default class RssDashboardPlugin extends Plugin {
   private _beforeUnloadHandler: (() => void) | null = null;
   private hasCompletedStartupSavedArticleValidation = false;
   private lastOwnSaveAtMs = 0;
+  private lastKnownDataMtime = 0;
+  private externalChangeCheckInFlight = false;
   private static readonly OWN_WRITE_SUPPRESS_WINDOW_MS = 1000;
+  private static readonly DATA_FILE_POLL_INTERVAL_MS = 5000;
   private static readonly FEED_REFRESH_CONCURRENCY = 4;
   private static readonly FEED_REFRESH_RENDER_THROTTLE_MS = 250;
 
@@ -557,47 +559,36 @@ export default class RssDashboardPlugin extends Plugin {
         );
       }
 
-      // When the dashboard leaf becomes active (e.g. user switched back to
-      // this tab on desktop after using mobile), pick up read/starred flags
-      // that Obsidian Sync may have written to data.json since plugin load.
-      this.registerEvent(
-        this.app.workspace.on("active-leaf-change", (leaf) => {
-          if (!leaf || leaf.view?.getViewType?.() !== RSS_DASHBOARD_VIEW_TYPE) {
-            return;
-          }
-          void (async () => {
-            const changed = await this.reconcileFromDisk();
-            if (changed) {
-              const view = await this.getActiveDashboardView();
-              view?.refresh();
-            }
-          })();
-        }),
+      // Pick up Obsidian Sync writes to data.json that arrive while
+      // Obsidian is open.
+      //
+      // We can't use vault.on("modify") here — plugin data lives at
+      // .obsidian/plugins/<id>/data.json, which Obsidian doesn't track in
+      // its file index, so that event never fires for our file. Instead
+      // we stat the file via vault.adapter, compare the mtime against the
+      // last value we recorded (after our own saves), and reconcile if it
+      // changed under us.
+      //
+      // We deliberately avoid active-leaf-change as a trigger: internal
+      // leaf switches (opening an article in the reader, dashboard
+      // re-focusing via rAF in handleArticleOpenKeepFocus) would fire it
+      // and a refresh would clobber the just-restored keyboard focus.
+      void this.recordCurrentDataMtime();
+
+      this.registerInterval(
+        window.setInterval(() => {
+          void this.checkForExternalDataChanges();
+        }, RssDashboardPlugin.DATA_FILE_POLL_INTERVAL_MS),
       );
 
-      // Catch Obsidian Sync writes to data.json that arrive while the
-      // dashboard is already focused (active-leaf-change wouldn't fire).
-      // Skip events triggered by our own saves: saveSettings() bumps
-      // lastOwnSaveAtMs and we ignore any modify within the suppress window.
-      const dataFilePath = `${this.manifest.dir}/data.json`;
-      this.registerEvent(
-        this.app.vault.on("modify", (file: TAbstractFile) => {
-          if (file.path !== dataFilePath) return;
-          if (
-            Date.now() - this.lastOwnSaveAtMs <
-            RssDashboardPlugin.OWN_WRITE_SUPPRESS_WINDOW_MS
-          ) {
-            return;
-          }
-          void (async () => {
-            const changed = await this.reconcileFromDisk();
-            if (changed) {
-              const view = await this.getActiveDashboardView();
-              view?.refresh();
-            }
-          })();
-        }),
-      );
+      this.registerDomEvent(window, "focus", () => {
+        void this.checkForExternalDataChanges();
+      });
+      this.registerDomEvent(document, "visibilitychange", () => {
+        if (document.visibilityState === "visible") {
+          void this.checkForExternalDataChanges();
+        }
+      });
 
       if (shouldRefreshOnOpen()) {
         void this.refreshFeeds();
@@ -1523,11 +1514,13 @@ export default class RssDashboardPlugin extends Plugin {
     // merge with on-disk here: an OR-merge would silently undo local
     // removals (e.g. user untagged an item, but on-disk still has the tag
     // → union puts it back). Cross-device flag propagation is handled by
-    // reconcileFromDisk() on focus and the vault.on('modify') watcher,
-    // both of which only run when we *aren't* mid-write.
+    // the external-change poller on `checkForExternalDataChanges`.
     this.lastOwnSaveAtMs = Date.now();
     await this.saveData(this.settings);
     this.lastOwnSaveAtMs = Date.now();
+    // Re-record the mtime so the poller doesn't mistake our own write for
+    // an external change a few seconds later.
+    await this.recordCurrentDataMtime();
   }
 
   /**
@@ -1550,6 +1543,65 @@ export default class RssDashboardPlugin extends Plugin {
         error,
       );
       return false;
+    }
+  }
+
+  private getDataFilePath(): string {
+    return `${this.manifest.dir ?? ""}/data.json`;
+  }
+
+  private async readDataMtime(): Promise<number> {
+    try {
+      const stat = await this.app.vault.adapter.stat(this.getDataFilePath());
+      return stat?.mtime ?? 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  private async recordCurrentDataMtime(): Promise<void> {
+    this.lastKnownDataMtime = await this.readDataMtime();
+  }
+
+  /**
+   * Check whether data.json was modified externally (e.g. by Obsidian Sync
+   * delivering changes from another device). If so, reconcile the in-memory
+   * flags from disk and refresh the active dashboard view when something
+   * actually changed.
+   *
+   * Cheap to call frequently — only does a stat() unless mtime moved.
+   */
+  private async checkForExternalDataChanges(): Promise<void> {
+    if (this.externalChangeCheckInFlight) return;
+    this.externalChangeCheckInFlight = true;
+    try {
+      const mtime = await this.readDataMtime();
+      if (mtime === 0) return;
+      // First poll (or seed race): just record and bail. We don't know
+      // whether this mtime represents an external change or merely the
+      // last save we already loaded.
+      if (this.lastKnownDataMtime === 0) {
+        this.lastKnownDataMtime = mtime;
+        return;
+      }
+      if (mtime === this.lastKnownDataMtime) return;
+      // Recently-completed own saves can show up here before
+      // recordCurrentDataMtime resolves; treat them as not-external.
+      if (
+        Date.now() - this.lastOwnSaveAtMs <
+        RssDashboardPlugin.OWN_WRITE_SUPPRESS_WINDOW_MS
+      ) {
+        this.lastKnownDataMtime = mtime;
+        return;
+      }
+      this.lastKnownDataMtime = mtime;
+      const changed = await this.reconcileFromDisk();
+      if (changed) {
+        const view = await this.getActiveDashboardView();
+        view?.refresh();
+      }
+    } finally {
+      this.externalChangeCheckInFlight = false;
     }
   }
 
